@@ -1,0 +1,12 @@
+# ─── GESTURA ULTRA — Streamlit Cloud Requirements ───────────────────────────
+# Python: 3.10 or higher
+# Deploy: https://share.streamlit.io
+
+# ── Core dashboard (required) ─────────────────────────────────────────────────
+streamlit>=1.35.0
+pandas>=2.1.0
+plotly>=5.20.0
+python-dotenv>=1.0.0
+
+# ── Supabase (optional — leave out if running demo-only) ─────────────────────
+supabase>=2.4.0

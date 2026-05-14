@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GESTURA — AI Hand Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --cyan: #00f5ff;
+    --magenta: #ff006e;
+    --green: #39ff14;
+    --amber: #ffb700;
+    --void: #020408;
+    --panel: rgba(0,245,255,0.04);
+    --border: rgba(0,245,255,0.15);
+    --glow-cyan: 0 0 20px rgba(0,245,255,0.5), 0 0 60px rgba(0,245,255,0.2);
+    --glow-green: 0 0 20px rgba(57,255,20,0.5), 0 0 60px rgba(57,255,20,0.2);
+    --glow-magenta: 0 0 20px rgba(255,0,110,0.5), 0 0 60px rgba(255,0,110,0.2);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--void);
+    font-family: 'Rajdhani', sans-serif;
+    color: var(--cyan);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+  }
+
+  /* SCANLINE OVERLAY */
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,245,255,0.015) 2px,
+      rgba(0,245,255,0.015) 4px
+    );
+    pointer-events:none;
+    z-index:999;
+  }
+
+  /* NOISE TEXTURE */
+  body::after {
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events:none;
+    z-index:998;
+    opacity:0.3;
+  }
+
+  #particles-canvas {
+    position:fixed;
+    inset:0;
+    z-index:1;
+    pointer-events:none;
+  }
+
+  /* MAIN VIDEO CONTAINER */
+  #video-container {
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:2;
+  }
+
+  #webcam {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    transform: scaleX(-1);
+    opacity:0.85;
+  }
+
+  #output-canvas {
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    transform: scaleX(-1);
+    z-index:3;
+    pointer-events:none;
+  }
+
+  /* CORNER BRACKETS */
+  .corner {
+    position:absolute;
+    width:40px; height:40px;
+    z-index:10;
+    pointer-events:none;
+  }
+  .corner::before, .corner::after { content:''; position:absolute; background:var(--cyan); }
+  .corner::before { width:2px; height:100%; }
+  .corner::after { width:100%; height:2px; }
+  .corner.tl { top:15px; left:15px; }
+  .corner.tr { top:15px; right:15px; transform:scaleX(-1); }
+  .corner.bl { bottom:15px; left:15px; transform:scaleY(-1); }
+  .corner.br { bottom:15px; right:15px; transform:scale(-1); }
+
+  /* TOP HUD */
+  #hud-top {
+    position:fixed;
+    top:0; left:0; right:0;
+    height:70px;
+    background: linear-gradient(180deg, rgba(0,5,10,0.95) 0%, transparent 100%);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 30px;
+    z-index:100;
+    border-bottom:1px solid var(--border);
+  }
+
+  .logo {
+    font-family:'Orbitron', sans-serif;
+    font-size:22px;
+    font-weight:900;
+    letter-spacing:6px;
+    text-shadow: var(--glow-cyan);
+    position:relative;
+  }
+  .logo span { color:var(--magenta); }
+  .logo-sub {
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    letter-spacing:4px;
+    color:rgba(0,245,255,0.5);
+    margin-top:2px;
+  }
+
+  .hud-metrics {
+    display:flex;
+    gap:30px;
+    align-items:center;
+  }
+
+  .metric {
+    text-align:center;
+    position:relative;
+  }
+  .metric-value {
+    font-family:'Share Tech Mono', monospace;
+    font-size:20px;
+    font-weight:700;
+    line-height:1;
+  }
+  .metric-label {
+    font-size:9px;
+    letter-spacing:3px;
+    color:rgba(0,245,255,0.5);
+    margin-top:2px;
+  }
+  .metric.fps .metric-value { color:var(--green); text-shadow:var(--glow-green); }
+  .metric.hands .metric-value { color:var(--cyan); text-shadow:var(--glow-cyan); }
+  .metric.conf .metric-value { color:var(--amber); }
+
+  /* STATUS BADGE */
+  #status-badge {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 14px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    border-radius:2px;
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    letter-spacing:2px;
+  }
+  .status-dot {
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--green);
+    box-shadow:var(--glow-green);
+    animation:pulse 1.5s ease-in-out infinite;
+  }
+  .status-dot.inactive { background:#444; box-shadow:none; animation:none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* LEFT PANEL */
+  #panel-left {
+    position:fixed;
+    left:20px; top:80px;
+    width:220px;
+    z-index:100;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .panel-card {
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-left:3px solid var(--cyan);
+    padding:12px 14px;
+    backdrop-filter:blur(10px);
+  }
+  .panel-card.magenta { border-left-color:var(--magenta); }
+  .panel-card.green { border-left-color:var(--green); }
+  .panel-card.amber { border-left-color:var(--amber); }
+
+  .panel-title {
+    font-size:9px;
+    letter-spacing:4px;
+    color:rgba(0,245,255,0.5);
+    margin-bottom:10px;
+    text-transform:uppercase;
+  }
+
+  /* GESTURE DISPLAY */
+  #gesture-display {
+    font-family:'Orbitron', monospace;
+    font-size:14px;
+    font-weight:700;
+    color:var(--green);
+    text-shadow:var(--glow-green);
+    min-height:22px;
+    transition:all 0.2s;
+  }
+
+  /* FINGER STATUS GRID */
+  .finger-grid {
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:6px;
+  }
+  .finger-pip {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+  }
+  .finger-pip-dot {
+    width:12px; height:12px;
+    border-radius:50%;
+    border:1px solid rgba(0,245,255,0.3);
+    background:rgba(0,245,255,0.05);
+    transition:all 0.15s;
+  }
+  .finger-pip-dot.active {
+    background:var(--cyan);
+    box-shadow:var(--glow-cyan);
+    border-color:var(--cyan);
+  }
+  .finger-pip-label {
+    font-family:'Share Tech Mono', monospace;
+    font-size:7px;
+    color:rgba(0,245,255,0.4);
+    letter-spacing:1px;
+  }
+
+  /* CONFIDENCE BARS */
+  .conf-bar-wrap {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .conf-bar-row {
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .conf-bar-label {
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    width:30px;
+    color:rgba(0,245,255,0.5);
+  }
+  .conf-bar-track {
+    flex:1;
+    height:4px;
+    background:rgba(0,245,255,0.1);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .conf-bar-fill {
+    height:100%;
+    background:var(--cyan);
+    box-shadow:var(--glow-cyan);
+    transition:width 0.1s;
+    width:0%;
+  }
+  .conf-bar-fill.h2 { background:var(--magenta); box-shadow:var(--glow-magenta); }
+
+  /* RIGHT PANEL */
+  #panel-right {
+    position:fixed;
+    right:20px; top:80px;
+    width:220px;
+    z-index:100;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  /* GESTURE HISTORY */
+  #gesture-log {
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    max-height:140px;
+    overflow:hidden;
+  }
+  .log-entry {
+    font-family:'Share Tech Mono', monospace;
+    font-size:10px;
+    color:rgba(0,245,255,0.4);
+    padding:3px 0;
+    border-bottom:1px solid rgba(0,245,255,0.08);
+    display:flex;
+    justify-content:space-between;
+    animation:fadeIn 0.3s ease;
+  }
+  .log-entry .gesture-name { color:var(--green); }
+  @keyframes fadeIn { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
+
+  /* SHORTCUTS PANEL */
+  .shortcut-list { display:flex; flex-direction:column; gap:5px; }
+  .shortcut-item {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+  }
+  .shortcut-key {
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    padding:2px 6px;
+    border:1px solid rgba(0,245,255,0.3);
+    color:var(--cyan);
+    min-width:55px;
+    text-align:center;
+  }
+  .shortcut-action { color:rgba(0,245,255,0.6); font-size:10px; }
+
+  /* BOTTOM HUD */
+  #hud-bottom {
+    position:fixed;
+    bottom:0; left:0; right:0;
+    height:60px;
+    background:linear-gradient(0deg, rgba(0,5,10,0.95) 0%, transparent 100%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:20px;
+    z-index:100;
+    border-top:1px solid var(--border);
+  }
+
+  .btn-hud {
+    font-family:'Share Tech Mono', monospace;
+    font-size:10px;
+    letter-spacing:3px;
+    padding:8px 20px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--cyan);
+    cursor:pointer;
+    transition:all 0.2s;
+    text-transform:uppercase;
+    position:relative;
+    overflow:hidden;
+  }
+  .btn-hud::before {
+    content:'';
+    position:absolute;
+    inset:0;
+    background:var(--cyan);
+    transform:translateX(-100%);
+    transition:transform 0.2s;
+    opacity:0.1;
+  }
+  .btn-hud:hover::before { transform:translateX(0); }
+  .btn-hud:hover {
+    border-color:var(--cyan);
+    box-shadow:var(--glow-cyan);
+    color:#fff;
+  }
+  .btn-hud.active {
+    background:rgba(0,245,255,0.15);
+    border-color:var(--cyan);
+    box-shadow:var(--glow-cyan);
+  }
+
+  /* GESTURE NOTIFICATION OVERLAY */
+  #gesture-toast {
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%) scale(0.8);
+    font-family:'Orbitron', sans-serif;
+    font-size:32px;
+    font-weight:900;
+    color:var(--green);
+    text-shadow:var(--glow-green), 0 0 100px rgba(57,255,20,0.3);
+    pointer-events:none;
+    z-index:500;
+    opacity:0;
+    letter-spacing:8px;
+    text-align:center;
+  }
+  #gesture-toast .toast-sub {
+    font-size:12px;
+    letter-spacing:6px;
+    color:rgba(57,255,20,0.6);
+    margin-top:8px;
+    font-weight:400;
+    font-family:'Share Tech Mono', monospace;
+  }
+
+  /* VIRTUAL CURSOR */
+  #virtual-cursor {
+    position:fixed;
+    width:20px; height:20px;
+    pointer-events:none;
+    z-index:200;
+    transform:translate(-50%,-50%);
+    transition:left 0.05s, top 0.05s;
+  }
+  .cursor-ring {
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    border:2px solid var(--cyan);
+    box-shadow:var(--glow-cyan);
+    animation:spin 3s linear infinite;
+  }
+  .cursor-dot {
+    position:absolute;
+    width:4px; height:4px;
+    border-radius:50%;
+    background:var(--cyan);
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    box-shadow:var(--glow-cyan);
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* LOADING OVERLAY */
+  #loading {
+    position:fixed;
+    inset:0;
+    background:var(--void);
+    z-index:1000;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:24px;
+  }
+  .loading-logo {
+    font-family:'Orbitron', sans-serif;
+    font-size:36px;
+    font-weight:900;
+    letter-spacing:10px;
+    text-shadow:var(--glow-cyan);
+  }
+  .loading-logo span { color:var(--magenta); }
+  .load-bar-track {
+    width:300px; height:2px;
+    background:rgba(0,245,255,0.1);
+    position:relative;
+    overflow:hidden;
+  }
+  .load-bar-fill {
+    position:absolute;
+    left:0; top:0; height:100%;
+    background:var(--cyan);
+    box-shadow:var(--glow-cyan);
+    width:0%;
+    transition:width 0.3s;
+  }
+  .load-text {
+    font-family:'Share Tech Mono', monospace;
+    font-size:10px;
+    letter-spacing:4px;
+    color:rgba(0,245,255,0.5);
+  }
+
+  /* MOTION TRAIL CANVAS */
+  #trail-canvas {
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:50;
+    transform:scaleX(-1);
+  }
+
+  /* HAND ABSENT WARNING */
+  #no-hand-msg {
+    position:fixed;
+    bottom:80px;
+    left:50%;
+    transform:translateX(-50%);
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    letter-spacing:4px;
+    color:rgba(0,245,255,0.3);
+    pointer-events:none;
+    z-index:100;
+    animation:blink 2s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:0.7} }
+
+  /* RIPPLE */
+  .ripple {
+    position:fixed;
+    border-radius:50%;
+    border:2px solid var(--cyan);
+    pointer-events:none;
+    z-index:400;
+    animation:rippleOut 0.6s ease-out forwards;
+  }
+  @keyframes rippleOut {
+    from { width:0; height:0; opacity:1; transform:translate(-50%,-50%) scale(0); }
+    to { width:100px; height:100px; opacity:0; transform:translate(-50%,-50%) scale(1); }
+  }
+
+  /* SLIDE OVERLAY */
+  #slide-overlay {
+    position:fixed;
+    inset:0;
+    z-index:300;
+    pointer-events:none;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    opacity:0;
+  }
+  .slide-text {
+    font-family:'Orbitron', sans-serif;
+    font-size:48px;
+    font-weight:900;
+    letter-spacing:10px;
+    color:var(--amber);
+    text-shadow:0 0 40px rgba(255,183,0,0.6);
+  }
+
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="loading-logo">GESTU<span>RA</span></div>
+  <div class="load-bar-track"><div class="load-bar-fill" id="load-bar"></div></div>
+  <div class="load-text" id="load-text">INITIALIZING AI ENGINE...</div>
+</div>
+
+<!-- PARTICLES -->
+<canvas id="particles-canvas"></canvas>
+<canvas id="trail-canvas"></canvas>
+
+<!-- CORNERS -->
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<!-- VIDEO FEED -->
+<div id="video-container">
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="output-canvas"></canvas>
+</div>
+
+<!-- VIRTUAL CURSOR -->
+<div id="virtual-cursor">
+  <div class="cursor-ring"></div>
+  <div class="cursor-dot"></div>
+</div>
+
+<!-- TOP HUD -->
+<div id="hud-top">
+  <div>
+    <div class="logo">GESTU<span>RA</span></div>
+    <div class="logo-sub">AI HAND INTELLIGENCE v2.4</div>
+  </div>
+  <div class="hud-metrics">
+    <div class="metric fps">
+      <div class="metric-value" id="fps-val">--</div>
+      <div class="metric-label">FPS</div>
+    </div>
+    <div class="metric hands">
+      <div class="metric-value" id="hands-val">0</div>
+      <div class="metric-label">HANDS</div>
+    </div>
+    <div class="metric conf">
+      <div class="metric-value" id="conf-val">--</div>
+      <div class="metric-label">CONF%</div>
+    </div>
+  </div>
+  <div id="status-badge">
+    <div class="status-dot inactive" id="status-dot"></div>
+    <span id="status-text">OFFLINE</span>
+  </div>
+</div>
+
+<!-- LEFT PANEL -->
+<div id="panel-left">
+  <div class="panel-card green">
+    <div class="panel-title">▸ ACTIVE GESTURE</div>
+    <div id="gesture-display">AWAITING...</div>
+  </div>
+
+  <div class="panel-card">
+    <div class="panel-title">▸ FINGER STATE</div>
+    <div class="finger-grid">
+      <div class="finger-pip">
+        <div class="finger-pip-dot" id="fp-thumb"></div>
+        <div class="finger-pip-label">THB</div>
+      </div>
+      <div class="finger-pip">
+        <div class="finger-pip-dot" id="fp-index"></div>
+        <div class="finger-pip-label">IDX</div>
+      </div>
+      <div class="finger-pip">
+        <div class="finger-pip-dot" id="fp-middle"></div>
+        <div class="finger-pip-label">MID</div>
+      </div>
+      <div class="finger-pip">
+        <div class="finger-pip-dot" id="fp-ring"></div>
+        <div class="finger-pip-label">RNG</div>
+      </div>
+      <div class="finger-pip">
+        <div class="finger-pip-dot" id="fp-pinky"></div>
+        <div class="finger-pip-label">PKY</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="panel-title">▸ CONFIDENCE</div>
+    <div class="conf-bar-wrap">
+      <div class="conf-bar-row">
+        <span class="conf-bar-label">L</span>
+        <div class="conf-bar-track">
+          <div class="conf-bar-fill" id="conf-left"></div>
+        </div>
+      </div>
+      <div class="conf-bar-row">
+        <span class="conf-bar-label">R</span>
+        <div class="conf-bar-track">
+          <div class="conf-bar-fill h2" id="conf-right"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-card amber">
+    <div class="panel-title">▸ VELOCITY</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--amber);" id="velocity-val">X: 0.00 | Y: 0.00</div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div id="panel-right">
+  <div class="panel-card magenta">
+    <div class="panel-title">▸ GESTURE LOG</div>
+    <div id="gesture-log">
+      <div class="log-entry"><span style="color:rgba(0,245,255,0.3)">-- awaiting detection --</span></div>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="panel-title">▸ FINGER SHORTCUTS</div>
+    <div class="shortcut-list">
+      <div class="shortcut-item"><span class="shortcut-key">☝ 1 FINGER</span><span class="shortcut-action">Open App</span></div>
+      <div class="shortcut-item"><span class="shortcut-key">✌ 2 FINGERS</span><span class="shortcut-action">Music Mode</span></div>
+      <div class="shortcut-item"><span class="shortcut-key">🤟 3 FINGERS</span><span class="shortcut-action">Browser</span></div>
+      <div class="shortcut-item"><span class="shortcut-key">🖖 4 FINGERS</span><span class="shortcut-action">AI Mode</span></div>
+      <div class="shortcut-item"><span class="shortcut-key">✋ 5 FINGERS</span><span class="shortcut-action">Reset All</span></div>
+    </div>
+  </div>
+
+  <div class="panel-card green">
+    <div class="panel-title">▸ HAND POSITION</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;line-height:1.8;color:rgba(0,245,255,0.6)" id="hand-pos">
+      PALM X: --<br>PALM Y: --<br>WRIST: --,--
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM HUD -->
+<div id="hud-bottom">
+  <button class="btn-hud" id="btn-start">▶ START CAMERA</button>
+  <button class="btn-hud" id="btn-skeleton" disabled>SKELETON: ON</button>
+  <button class="btn-hud" id="btn-trail" disabled>TRAILS: ON</button>
+  <button class="btn-hud" id="btn-cursor" disabled>CURSOR: ON</button>
+  <button class="btn-hud" id="btn-heatmap" disabled>HEATMAP: OFF</button>
+</div>
+
+<!-- GESTURE TOAST -->
+<div id="gesture-toast">
+  <div id="toast-text"></div>
+  <div class="toast-sub" id="toast-sub"></div>
+</div>
+
+<!-- NO HAND MESSAGE -->
+<div id="no-hand-msg">[ NO HAND DETECTED — SHOW HANDS IN FRAME ]</div>
+
+<!-- SLIDE OVERLAY -->
+<div id="slide-overlay">
+  <div class="slide-text" id="slide-text">SLIDE →</div>
+</div>
+
+<!-- MEDIAPIPE + SCRIPTS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script>
+// ============================================================
+// GESTURA — AI Hand Intelligence
+// Full MediaPipe Hands integration with gesture recognition
+// ============================================================
+
+// ─── STATE ───────────────────────────────────────────────────
+const state = {
+  running: false,
+  showSkeleton: true,
+  showTrail: true,
+  showCursor: true,
+  showHeatmap: false,
+  handsDetected: 0,
+  lastGesture: '',
+  lastGestureTime: 0,
+  gestureLog: [],
+  fps: 0,
+  fpsFrames: 0,
+  fpsLast: performance.now(),
+  confidence: [0, 0],
+  slideIndex: 0,
+  trail: [],  // [{x,y,age}]
+  heatmap: new Array(60).fill(0).map(() => new Array(40).fill(0)),
+  prevPalmPos: null,
+  velocity: { x: 0, y: 0 },
+  prevIndexPos: null,
+  gestureDebounce: {},
+};
+
+// ─── ELEMENTS ─────────────────────────────────────────────────
+const video = document.getElementById('webcam');
+const canvas = document.getElementById('output-canvas');
+const ctx = canvas.getContext('2d');
+const trailCanvas = document.getElementById('trail-canvas');
+const trailCtx = trailCanvas.getContext('2d');
+const particlesCanvas = document.getElementById('particles-canvas');
+const pCtx = particlesCanvas.getContext('2d');
+const cursor = document.getElementById('virtual-cursor');
+const loadBar = document.getElementById('load-bar');
+const loadText = document.getElementById('load-text');
+
+// ─── RESIZE ───────────────────────────────────────────────────
+function resizeCanvases() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  trailCanvas.width = window.innerWidth;
+  trailCanvas.height = window.innerHeight;
+  particlesCanvas.width = window.innerWidth;
+  particlesCanvas.height = window.innerHeight;
+}
+resizeCanvases();
+window.addEventListener('resize', resizeCanvases);
+
+// ─── PARTICLES ────────────────────────────────────────────────
+const particles = Array.from({length: 60}, () => ({
+  x: Math.random() * window.innerWidth,
+  y: Math.random() * window.innerHeight,
+  vx: (Math.random()-0.5)*0.4,
+  vy: (Math.random()-0.5)*0.4,
+  r: Math.random()*2+0.5,
+  alpha: Math.random()*0.4+0.1,
+}));
+
+function drawParticles() {
+  pCtx.clearRect(0,0,particlesCanvas.width,particlesCanvas.height);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if(p.x<0) p.x=particlesCanvas.width;
+    if(p.x>particlesCanvas.width) p.x=0;
+    if(p.y<0) p.y=particlesCanvas.height;
+    if(p.y>particlesCanvas.height) p.y=0;
+    pCtx.beginPath();
+    pCtx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    pCtx.fillStyle=`rgba(0,245,255,${p.alpha})`;
+    pCtx.fill();
+  });
+  requestAnimationFrame(drawParticles);
+}
+drawParticles();
+
+// ─── LOADING SEQUENCE ─────────────────────────────────────────
+const loadSteps = [
+  [10, 'LOADING MEDIAPIPE HANDS...'],
+  [25, 'INITIALIZING NEURAL NETWORK...'],
+  [40, 'CONFIGURING LANDMARK TRACKER...'],
+  [55, 'BUILDING GESTURE ENGINE...'],
+  [70, 'LOADING CANVAS RENDERER...'],
+  [85, 'SETTING UP MOTION ANALYSIS...'],
+  [95, 'CALIBRATING DETECTION THRESHOLDS...'],
+  [100, 'SYSTEM READY'],
+];
+let loadIdx = 0;
+function advanceLoad() {
+  if(loadIdx >= loadSteps.length) return;
+  const [pct, txt] = loadSteps[loadIdx++];
+  loadBar.style.width = pct + '%';
+  loadText.textContent = txt;
+  if(loadIdx < loadSteps.length) setTimeout(advanceLoad, 280 + Math.random()*200);
+  else setTimeout(hideLoading, 400);
+}
+function hideLoading() {
+  gsap.to('#loading', {opacity:0, duration:0.8, onComplete: () => {
+    document.getElementById('loading').style.display = 'none';
+  }});
+}
+setTimeout(advanceLoad, 300);
+
+// ─── MEDIAPIPE LOADER ─────────────────────────────────────────
+let hands = null;
+let camera = null;
+let mpLoaded = false;
+
+async function loadMediaPipe() {
+  return new Promise((resolve, reject) => {
+    // Dynamically load MediaPipe scripts
+    const scripts = [
+      'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js',
+    ];
+    let loaded = 0;
+    scripts.forEach(src => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.crossOrigin = 'anonymous';
+      s.onload = () => { if(++loaded === scripts.length) resolve(); };
+      s.onerror = () => reject(new Error('MediaPipe load failed: ' + src));
+      document.head.appendChild(s);
+    });
+  });
+}
+
+// ─── CAMERA START ─────────────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-start');
+  btn.textContent = 'LOADING...';
+  btn.disabled = true;
+
+  try {
+    if(!mpLoaded) {
+      await loadMediaPipe();
+      mpLoaded = true;
+    }
+    await startDetection();
+
+    btn.textContent = '■ STOP';
+    btn.disabled = false;
+    btn.classList.add('active');
+    btn.onclick = stopDetection;
+
+    document.getElementById('btn-skeleton').disabled = false;
+    document.getElementById('btn-trail').disabled = false;
+    document.getElementById('btn-cursor').disabled = false;
+    document.getElementById('btn-heatmap').disabled = false;
+
+  } catch(e) {
+    console.error(e);
+    btn.textContent = '▶ START CAMERA';
+    btn.disabled = false;
+    showToast('ERROR', e.message.substring(0,30).toUpperCase(), '#ff006e');
+  }
+});
+
+async function startDetection() {
+  // Setup MediaPipe Hands
+  hands = new window.Hands({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.65,
+    minTrackingConfidence: 0.55,
+  });
+
+  hands.onResults(onResults);
+
+  // Get camera stream
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width:{ideal:1280}, height:{ideal:720}, facingMode:'user' },
+    audio: false,
+  });
+  video.srcObject = stream;
+
+  state.running = true;
+
+  // Use MediaPipe Camera utility
+  camera = new window.Camera(video, {
+    onFrame: async () => {
+      if(state.running) await hands.send({image: video});
+    },
+    width: 1280,
+    height: 720,
+  });
+  camera.start();
+
+  // Update status
+  document.getElementById('status-dot').classList.remove('inactive');
+  document.getElementById('status-text').textContent = 'TRACKING';
+  document.getElementById('no-hand-msg').style.display = 'block';
+
+  // FPS loop
+  requestAnimationFrame(fpsLoop);
+}
+
+function stopDetection() {
+  state.running = false;
+  if(camera) { camera.stop(); camera = null; }
+  if(video.srcObject) {
+    video.srcObject.getTracks().forEach(t=>t.stop());
+    video.srcObject = null;
+  }
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  trailCtx.clearRect(0,0,trailCanvas.width,trailCanvas.height);
+
+  document.getElementById('status-dot').classList.add('inactive');
+  document.getElementById('status-text').textContent = 'OFFLINE';
+  document.getElementById('fps-val').textContent = '--';
+  document.getElementById('hands-val').textContent = '0';
+  document.getElementById('conf-val').textContent = '--';
+  document.getElementById('gesture-display').textContent = 'AWAITING...';
+
+  const btn = document.getElementById('btn-start');
+  btn.textContent = '▶ START CAMERA';
+  btn.classList.remove('active');
+  btn.onclick = null;
+  btn.addEventListener('click', async () => {}, {once:true});
+  location.reload();
+}
+
+// ─── FPS COUNTER ──────────────────────────────────────────────
+function fpsLoop() {
+  state.fpsFrames++;
+  const now = performance.now();
+  if(now - state.fpsLast >= 1000) {
+    state.fps = state.fpsFrames;
+    state.fpsFrames = 0;
+    state.fpsLast = now;
+    document.getElementById('fps-val').textContent = state.fps;
+  }
+  if(state.running) requestAnimationFrame(fpsLoop);
+}
+
+// ─── LANDMARK INDICES ─────────────────────────────────────────
+const WRIST=0, THUMB_CMC=1, THUMB_MCP=2, THUMB_IP=3, THUMB_TIP=4,
+  INDEX_MCP=5, INDEX_PIP=6, INDEX_DIP=7, INDEX_TIP=8,
+  MIDDLE_MCP=9, MIDDLE_PIP=10, MIDDLE_DIP=11, MIDDLE_TIP=12,
+  RING_MCP=13, RING_PIP=14, RING_DIP=15, RING_TIP=16,
+  PINKY_MCP=17, PINKY_PIP=18, PINKY_DIP=19, PINKY_TIP=20;
+
+const CONNECTIONS = [
+  [WRIST,THUMB_CMC],[THUMB_CMC,THUMB_MCP],[THUMB_MCP,THUMB_IP],[THUMB_IP,THUMB_TIP],
+  [WRIST,INDEX_MCP],[INDEX_MCP,INDEX_PIP],[INDEX_PIP,INDEX_DIP],[INDEX_DIP,INDEX_TIP],
+  [WRIST,MIDDLE_MCP],[MIDDLE_MCP,MIDDLE_PIP],[MIDDLE_PIP,MIDDLE_DIP],[MIDDLE_DIP,MIDDLE_TIP],
+  [WRIST,RING_MCP],[RING_MCP,RING_PIP],[RING_PIP,RING_DIP],[RING_DIP,RING_TIP],
+  [WRIST,PINKY_MCP],[PINKY_MCP,PINKY_PIP],[PINKY_PIP,PINKY_DIP],[PINKY_DIP,PINKY_TIP],
+  [INDEX_MCP,MIDDLE_MCP],[MIDDLE_MCP,RING_MCP],[RING_MCP,PINKY_MCP],
+];
+
+// ─── GESTURE DETECTION ENGINE ─────────────────────────────────
+function isFingerUp(lm, tip, pip) {
+  return lm[tip].y < lm[pip].y;
+}
+
+function isThumbUp(lm) {
+  return lm[THUMB_TIP].x < lm[THUMB_IP].x; // mirrored
+}
+
+function dist2D(a, b) {
+  return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
+}
+
+function detectGesture(lm) {
+  const index  = isFingerUp(lm, INDEX_TIP, INDEX_PIP);
+  const middle = isFingerUp(lm, MIDDLE_TIP, MIDDLE_PIP);
+  const ring   = isFingerUp(lm, RING_TIP, RING_PIP);
+  const pinky  = isFingerUp(lm, PINKY_TIP, PINKY_PIP);
+  const thumb  = isThumbUp(lm);
+
+  const fingerCount = [index,middle,ring,pinky].filter(Boolean).length;
+
+  // PINCH
+  const pinchDist = dist2D(lm[INDEX_TIP], lm[THUMB_TIP]);
+  if(pinchDist < 0.05) return { name:'PINCH', count:fingerCount, fingers:{thumb,index,middle,ring,pinky} };
+
+  // OPEN PALM
+  if(index && middle && ring && pinky) return { name:'OPEN PALM', count:5, fingers:{thumb,index,middle,ring,pinky} };
+
+  // CLOSED FIST
+  if(!index && !middle && !ring && !pinky) return { name:'CLOSED FIST', count:0, fingers:{thumb,index,middle,ring,pinky} };
+
+  // THUMBS UP
+  if(thumb && !index && !middle && !ring && !pinky) return { name:'THUMBS UP', count:1, fingers:{thumb,index,middle,ring,pinky} };
+
+  // PEACE / V SIGN
+  if(index && middle && !ring && !pinky) return { name:'PEACE ✌', count:2, fingers:{thumb,index,middle,ring,pinky} };
+
+  // POINTING
+  if(index && !middle && !ring && !pinky) return { name:'POINTING ☝', count:1, fingers:{thumb,index,middle,ring,pinky} };
+
+  // THREE FINGERS
+  if(index && middle && ring && !pinky) return { name:'THREE', count:3, fingers:{thumb,index,middle,ring,pinky} };
+
+  // FOUR FINGERS
+  if(index && middle && ring && pinky) return { name:'FOUR', count:4, fingers:{thumb,index,middle,ring,pinky} };
+
+  // ROCK ON
+  if(index && pinky && !middle && !ring) return { name:'ROCK ON 🤘', count:2, fingers:{thumb,index,middle,ring,pinky} };
+
+  return { name:'GESTURE', count:fingerCount, fingers:{thumb,index,middle,ring,pinky} };
+}
+
+// ─── SWIPE DETECTION ──────────────────────────────────────────
+let swipeHistory = [];
+function detectSwipe(lm) {
+  const palm = { x: lm[WRIST].x, y: lm[WRIST].y };
+  swipeHistory.push({ ...palm, t: Date.now() });
+  if(swipeHistory.length > 12) swipeHistory.shift();
+
+  if(swipeHistory.length >= 6) {
+    const dx = swipeHistory[swipeHistory.length-1].x - swipeHistory[0].x;
+    const dt = swipeHistory[swipeHistory.length-1].t - swipeHistory[0].t;
+    if(dt < 500 && Math.abs(dx) > 0.15) {
+      return dx < 0 ? 'SWIPE RIGHT' : 'SWIPE LEFT';
+    }
+  }
+  return null;
+}
+
+// ─── WAVE DETECTION ───────────────────────────────────────────
+let waveHistory = [];
+let wavePeaks = 0;
+let waveDir = 0;
+function detectWave(lm) {
+  const wx = lm[WRIST].x;
+  waveHistory.push(wx);
+  if(waveHistory.length > 20) waveHistory.shift();
+  if(waveHistory.length < 10) return false;
+
+  const maxX = Math.max(...waveHistory);
+  const minX = Math.min(...waveHistory);
+  const range = maxX - minX;
+  const changes = waveHistory.reduce((acc,v,i) => {
+    if(i===0) return 0;
+    return acc + (Math.abs(v - waveHistory[i-1]) > 0.03 ? 1 : 0);
+  },0);
+  return range > 0.2 && changes > 4;
+}
+
+// ─── GESTURE ACTION DISPATCHER ────────────────────────────────
+const gestureActions = {
+  'OPEN PALM': () => {
+    showToast('OPEN PALM', 'SYSTEM PAUSED', 'var(--cyan)');
+  },
+  'CLOSED FIST': () => {
+    showToast('CLOSED FIST', 'SELECTION MODE', 'var(--magenta)');
+  },
+  'THUMBS UP': () => {
+    showToast('THUMBS UP', '👍 CONFIRMED', 'var(--green)');
+  },
+  'PEACE ✌': () => {
+    showToast('PEACE ✌', '2 — MUSIC MODE', 'var(--amber)');
+  },
+  'POINTING ☝': () => {
+    // Virtual cursor is already active
+  },
+  'THREE': () => {
+    showToast('THREE', '3 — BROWSER MODE', 'var(--cyan)');
+  },
+  'FOUR': () => {
+    showToast('FOUR', '4 — AI MODE', 'var(--magenta)');
+  },
+  'PINCH': () => {
+    showToast('PINCH', 'DRAG ACTIVE', 'var(--cyan)');
+  },
+  'ROCK ON 🤘': () => {
+    showToast('ROCK ON', '🤘 ACTIVATED', 'var(--green)');
+  },
+  'SWIPE RIGHT': () => {
+    state.slideIndex++;
+    showToast('SWIPE RIGHT →', `SLIDE ${state.slideIndex}`, 'var(--amber)');
+    slideFlash('→');
+  },
+  'SWIPE LEFT': () => {
+    state.slideIndex = Math.max(0, state.slideIndex-1);
+    showToast('← SWIPE LEFT', `SLIDE ${state.slideIndex}`, 'var(--amber)');
+    slideFlash('←');
+  },
+  'WAVE': () => {
+    showToast('WAVE 👋', 'ASSISTANT ACTIVATED', 'var(--green)');
+  },
+};
+
+function dispatchGesture(name) {
+  const now = Date.now();
+  if(state.gestureDebounce[name] && now - state.gestureDebounce[name] < 1500) return;
+  state.gestureDebounce[name] = now;
+
+  if(gestureActions[name]) gestureActions[name]();
+  addToLog(name);
+}
+
+// ─── TOAST NOTIFICATION ───────────────────────────────────────
+function showToast(main, sub, color='var(--green)') {
+  const toast = document.getElementById('gesture-toast');
+  const textEl = document.getElementById('toast-text');
+  const subEl = document.getElementById('toast-sub');
+  textEl.textContent = main;
+  subEl.textContent = sub;
+  toast.style.color = color;
+  toast.style.textShadow = `0 0 40px ${color}, 0 0 80px ${color}`;
+  gsap.killTweensOf(toast);
+  gsap.fromTo(toast,
+    {opacity:0, scale:0.7, y:20},
+    {opacity:1, scale:1, y:0, duration:0.3, ease:'back.out(1.7)',
+     onComplete: () => gsap.to(toast, {opacity:0, y:-10, duration:0.5, delay:0.8})}
+  );
+}
+
+// ─── SLIDE FLASH ──────────────────────────────────────────────
+function slideFlash(dir) {
+  const overlay = document.getElementById('slide-overlay');
+  document.getElementById('slide-text').textContent = `SLIDE ${dir}`;
+  gsap.killTweensOf(overlay);
+  gsap.fromTo(overlay,
+    {opacity:1},
+    {opacity:0, duration:0.8, ease:'power2.out'}
+  );
+}
+
+// ─── LOG ──────────────────────────────────────────────────────
+function addToLog(gestureName) {
+  const log = document.getElementById('gesture-log');
+  const time = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="gesture-name">${gestureName}</span><span>${time}</span>`;
+  log.insertBefore(entry, log.firstChild);
+  while(log.children.length > 7) log.removeChild(log.lastChild);
+}
+
+// ─── RIPPLE EFFECT ────────────────────────────────────────────
+function spawnRipple(x, y) {
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  r.style.left = x+'px';
+  r.style.top = y+'px';
+  document.body.appendChild(r);
+  setTimeout(()=>r.remove(), 700);
+}
+
+// ─── CANVAS RENDERING ─────────────────────────────────────────
+function drawHand(lm, handedness, confidence) {
+  const W = canvas.width, H = canvas.height;
+  const toScreen = (l) => ({ x: l.x * W, y: l.y * H });
+
+  // Mirror X for display (canvas is mirrored via CSS)
+  const pts = lm.map(l => ({ x: l.x * W, y: l.y * H }));
+
+  if(!state.showSkeleton) return;
+
+  const isLeft = handedness === 'Left';
+  const baseColor = isLeft ? '#00f5ff' : '#ff006e';
+  const tipColor = isLeft ? '#39ff14' : '#ffb700';
+
+  // Draw connections
+  CONNECTIONS.forEach(([a,b]) => {
+    const pa = pts[a], pb = pts[b];
+    const grad = ctx.createLinearGradient(pa.x,pa.y,pb.x,pb.y);
+    grad.addColorStop(0, baseColor+'cc');
+    grad.addColorStop(1, tipColor+'99');
+    ctx.beginPath();
+    ctx.moveTo(pa.x,pa.y);
+    ctx.lineTo(pb.x,pb.y);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = baseColor;
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  });
+
+  // Draw joints
+  const jointTips = [THUMB_TIP, INDEX_TIP, MIDDLE_TIP, RING_TIP, PINKY_TIP];
+  pts.forEach((p, i) => {
+    const isTip = jointTips.includes(i);
+    const r = isTip ? 7 : 4;
+    const color = isTip ? tipColor : baseColor;
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = isTip ? 18 : 8;
+    ctx.fill();
+
+    // Outer ring for tips
+    if(isTip) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r+4, 0, Math.PI*2);
+      ctx.strokeStyle = color+'55';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  });
+
+  // Confidence badge near wrist
+  const wrist = pts[WRIST];
+  ctx.font = 'bold 11px "Share Tech Mono"';
+  ctx.fillStyle = baseColor + 'cc';
+  ctx.shadowColor = baseColor;
+  ctx.shadowBlur = 6;
+  ctx.fillText(`${handedness} ${(confidence*100).toFixed(0)}%`, wrist.x+10, wrist.y+5);
+  ctx.shadowBlur = 0;
+
+  // Palm center indicator
+  const palmX = (pts[INDEX_MCP].x + pts[PINKY_MCP].x) / 2;
+  const palmY = (pts[INDEX_MCP].y + pts[PINKY_MCP].y) / 2;
+  ctx.beginPath();
+  ctx.arc(palmX, palmY, 12, 0, Math.PI*2);
+  ctx.strokeStyle = baseColor + '55';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(palmX, palmY, 4, 0, Math.PI*2);
+  ctx.fillStyle = baseColor + '88';
+  ctx.fill();
+}
+
+// ─── TRAIL RENDERING ──────────────────────────────────────────
+function addTrail(x, y) {
+  if(!state.showTrail) return;
+  state.trail.push({ x: x * trailCanvas.width, y: y * trailCanvas.height, age: 0 });
+  if(state.trail.length > 120) state.trail.shift();
+}
+
+function drawTrails() {
+  trailCtx.clearRect(0,0,trailCanvas.width,trailCanvas.height);
+  state.trail.forEach((p,i) => {
+    p.age++;
+    const maxAge = 80;
+    if(p.age > maxAge) { state.trail.splice(i,1); return; }
+    const alpha = (1 - p.age/maxAge) * 0.6;
+    const r = (1 - p.age/maxAge) * 5;
+    trailCtx.beginPath();
+    trailCtx.arc(p.x, p.y, r, 0, Math.PI*2);
+    trailCtx.fillStyle = `rgba(0,245,255,${alpha})`;
+    trailCtx.shadowColor = '#00f5ff';
+    trailCtx.shadowBlur = 6;
+    trailCtx.fill();
+    trailCtx.shadowBlur = 0;
+  });
+}
+
+// ─── HEATMAP ──────────────────────────────────────────────────
+function updateHeatmap(lm) {
+  const hx = Math.floor(lm[WRIST].x * 60);
+  const hy = Math.floor(lm[WRIST].y * 40);
+  if(hx>=0&&hx<60&&hy>=0&&hy<40) state.heatmap[hx][hy]++;
+}
+
+function drawHeatmap() {
+  if(!state.showHeatmap) return;
+  const W=canvas.width, H=canvas.height;
+  const cw=W/60, ch=H/40;
+  for(let x=0;x<60;x++) {
+    for(let y=0;y<40;y++) {
+      const v = Math.min(state.heatmap[x][y]/20, 1);
+      if(v<0.05) continue;
+      ctx.fillStyle = `rgba(255,0,110,${v*0.4})`;
+      ctx.fillRect(x*cw,y*ch,cw,ch);
+    }
+  }
+}
+
+// ─── MAIN RESULTS HANDLER ─────────────────────────────────────
+function onResults(results) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawHeatmap();
+
+  const multiHandLandmarks = results.multiHandLandmarks || [];
+  const multiHandedness = results.multiHandedness || [];
+
+  state.handsDetected = multiHandLandmarks.length;
+  document.getElementById('hands-val').textContent = state.handsDetected;
+  document.getElementById('no-hand-msg').style.opacity = state.handsDetected > 0 ? '0' : '1';
+
+  if(state.handsDetected === 0) {
+    document.getElementById('gesture-display').textContent = 'NO HAND';
+    document.getElementById('conf-left').style.width = '0%';
+    document.getElementById('conf-right').style.width = '0%';
+    document.getElementById('conf-val').textContent = '--';
+    cursor.style.opacity = '0';
+    return;
+  }
+
+  cursor.style.opacity = '1';
+
+  multiHandLandmarks.forEach((lm, idx) => {
+    const handedness = multiHandedness[idx]?.label || 'Unknown';
+    const confidence = multiHandedness[idx]?.score || 0;
+    const hand = handedness === 'Left' ? 'left' : 'right';
+
+    // Update confidence bars
+    const bar = hand === 'left' ? 'conf-left' : 'conf-right';
+    document.getElementById(bar).style.width = (confidence*100).toFixed(0) + '%';
+
+    // Track velocity
+    const wristPos = { x: lm[WRIST].x, y: lm[WRIST].y };
+    if(state.prevPalmPos) {
+      state.velocity.x = (wristPos.x - state.prevPalmPos.x) * 60;
+      state.velocity.y = (wristPos.y - state.prevPalmPos.y) * 60;
+      document.getElementById('velocity-val').textContent =
+        `X: ${state.velocity.x.toFixed(2)} | Y: ${state.velocity.y.toFixed(2)}`;
+    }
+    state.prevPalmPos = wristPos;
+
+    // Draw skeleton
+    drawHand(lm, handedness, confidence);
+
+    // Trail from index tip
+    addTrail(lm[INDEX_TIP].x, lm[INDEX_TIP].y);
+
+    // Update heatmap
+    updateHeatmap(lm);
+
+    // Virtual cursor (index tip)
+    const ix = lm[INDEX_TIP].x;
+    const iy = lm[INDEX_TIP].y;
+    // Mirror for display (CSS mirrored canvas)
+    cursor.style.left = ((1-ix)*window.innerWidth) + 'px';
+    cursor.style.top = (iy * window.innerHeight) + 'px';
+
+    // Gesture detection (first hand only for primary)
+    if(idx === 0) {
+      const gesture = detectGesture(lm);
+
+      // Update finger indicators
+      document.getElementById('fp-thumb').classList.toggle('active', gesture.fingers.thumb);
+      document.getElementById('fp-index').classList.toggle('active', gesture.fingers.index);
+      document.getElementById('fp-middle').classList.toggle('active', gesture.fingers.middle);
+      document.getElementById('fp-ring').classList.toggle('active', gesture.fingers.ring);
+      document.getElementById('fp-pinky').classList.toggle('active', gesture.fingers.pinky);
+
+      // Update confidence val
+      document.getElementById('conf-val').textContent = (confidence*100).toFixed(0);
+
+      // Swipe detection
+      const swipe = detectSwipe(lm);
+      // Wave detection
+      const wave = detectWave(lm);
+
+      let finalGesture = gesture.name;
+      if(swipe) finalGesture = swipe;
+      if(wave) finalGesture = 'WAVE';
+
+      // Finger count shortcuts
+      const count = gesture.count;
+      const fingerGestureMap = {
+        1: 'POINTING ☝',
+        2: 'PEACE ✌',
+        3: 'THREE',
+        4: 'FOUR',
+        5: 'OPEN PALM',
+      };
+
+      // Update gesture display
+      document.getElementById('gesture-display').textContent = finalGesture;
+
+      // Dispatch gesture action (with debounce)
+      if(finalGesture !== state.lastGesture || Date.now()-state.lastGestureTime > 1200) {
+        if(finalGesture !== 'GESTURE' && finalGesture !== 'NO HAND') {
+          dispatchGesture(finalGesture);
+          state.lastGesture = finalGesture;
+          state.lastGestureTime = Date.now();
+        }
+      }
+
+      // Hand position panel
+      const palmX = ((lm[INDEX_MCP].x + lm[PINKY_MCP].x)/2).toFixed(2);
+      const palmY = ((lm[INDEX_MCP].y + lm[PINKY_MCP].y)/2).toFixed(2);
+      document.getElementById('hand-pos').innerHTML =
+        `PALM X: ${palmX}<br>PALM Y: ${palmY}<br>WRIST: ${lm[WRIST].x.toFixed(2)},${lm[WRIST].y.toFixed(2)}`;
+
+      // Pinch ripple effect
+      const pinchDist = Math.sqrt(
+        (lm[INDEX_TIP].x-lm[THUMB_TIP].x)**2 + (lm[INDEX_TIP].y-lm[THUMB_TIP].y)**2
+      );
+      if(pinchDist < 0.05) {
+        const sx = (1 - lm[INDEX_TIP].x) * window.innerWidth;
+        const sy = lm[INDEX_TIP].y * window.innerHeight;
+        if(!state._lastRipple || Date.now()-state._lastRipple > 500) {
+          spawnRipple(sx, sy);
+          state._lastRipple = Date.now();
+        }
+      }
+    }
+  });
+
+  drawTrails();
+}
+
+// ─── BUTTON CONTROLS ──────────────────────────────────────────
+document.getElementById('btn-skeleton').addEventListener('click', function() {
+  state.showSkeleton = !state.showSkeleton;
+  this.textContent = `SKELETON: ${state.showSkeleton?'ON':'OFF'}`;
+  this.classList.toggle('active', state.showSkeleton);
+});
+
+document.getElementById('btn-trail').addEventListener('click', function() {
+  state.showTrail = !state.showTrail;
+  if(!state.showTrail) trailCtx.clearRect(0,0,trailCanvas.width,trailCanvas.height);
+  this.textContent = `TRAILS: ${state.showTrail?'ON':'OFF'}`;
+  this.classList.toggle('active', state.showTrail);
+});
+
+document.getElementById('btn-cursor').addEventListener('click', function() {
+  state.showCursor = !state.showCursor;
+  cursor.style.display = state.showCursor ? 'block' : 'none';
+  this.textContent = `CURSOR: ${state.showCursor?'ON':'OFF'}`;
+  this.classList.toggle('active', state.showCursor);
+});
+
+document.getElementById('btn-heatmap').addEventListener('click', function() {
+  state.showHeatmap = !state.showHeatmap;
+  this.textContent = `HEATMAP: ${state.showHeatmap?'ON':'OFF'}`;
+  this.classList.toggle('active', state.showHeatmap);
+});
+
+// ─── CORNER GLOW ANIMATION ────────────────────────────────────
+gsap.to('.corner', {
+  opacity:0.4,
+  duration:1.5,
+  yoyo:true,
+  repeat:-1,
+  ease:'sine.inOut',
+  stagger:0.3,
+});
+
+// ─── HUD INTRO ANIMATION ──────────────────────────────────────
+gsap.from('#hud-top', { y:-70, opacity:0, duration:1, ease:'power3.out', delay:1.5 });
+gsap.from('#hud-bottom', { y:60, opacity:0, duration:1, ease:'power3.out', delay:1.7 });
+gsap.from('#panel-left .panel-card', { x:-30, opacity:0, duration:0.6, ease:'power3.out', stagger:0.1, delay:1.9 });
+gsap.from('#panel-right .panel-card', { x:30, opacity:0, duration:0.6, ease:'power3.out', stagger:0.1, delay:2.1 });
+
+</script>
+<script src="gestura_powerpack.js"></script>
+</body>
+</html>
