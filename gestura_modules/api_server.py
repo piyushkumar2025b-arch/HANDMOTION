@@ -59,10 +59,6 @@ def create_app():
     return app
 
 
+# app is intentionally None unless FastAPI is installed.
+# Call create_app() explicitly when you need the server.
 app = None
-try:
-    app = create_app()
-except RuntimeError:
-    # FastAPI is optional. Importing this module should still work without it.
-    app = None
-

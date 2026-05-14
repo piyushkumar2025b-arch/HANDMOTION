@@ -1,87 +1,91 @@
-# GESTURA ULTRA — Streamlit Analytics Dashboard
+# ⚡ GESTURA ULTRA — Hand Motion Analytics Dashboard
 
-## Quick Start
+A real-time Streamlit analytics dashboard for the GESTURA hand-motion superpower system.  
+Works in **Demo Mode** (synthetic data) out of the box — no camera or Supabase required.
+
+---
+
+## 🚀 Deploy to Streamlit Cloud (3 steps)
+
+1. **Push this folder to a GitHub repo** (make sure `.gitignore` is respected — no `.env` or `secrets.toml` in the repo).
+
+2. **Go to [share.streamlit.io](https://share.streamlit.io)** → *New app* → pick your repo.
+   - Main file: `gestura_dashboard.py`
+   - Python version: `3.10` or higher
+
+3. **Add secrets** (optional — only for live Supabase data):
+   - In the Cloud dashboard → *App Settings* → *Secrets*, paste:
+     ```toml
+     SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co"
+     SUPABASE_KEY = "YOUR_SERVICE_ROLE_OR_ANON_KEY"
+     ```
+   - Without secrets, the app runs in **Demo Mode** (fully functional with synthetic data).
+
+---
+
+## 💻 Run Locally
 
 ```bash
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Set environment variables (optional — runs in demo mode without them)
+# 2. (Optional) create a .env file for live Supabase data
 cp .env.example .env
-# Edit .env with your Supabase credentials
+# edit .env and fill in SUPABASE_URL and SUPABASE_KEY
 
-# 3. Run the dashboard
+# 3. Launch
 streamlit run gestura_dashboard.py
 ```
 
-## Environment Variables
+---
 
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_KEY` | Service role or anon key |
+## 📁 Project Structure
 
-Without these, the dashboard runs in **Demo Mode** with synthetic data.
-
-## Supabase Schema
-
-The dashboard expects these tables:
-
-```sql
--- Gesture events
-CREATE TABLE gesture_events (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  created_at  timestamptz DEFAULT now(),
-  gesture_name text NOT NULL,
-  confidence  float,
-  palm_x      float,
-  palm_y      float,
-  power_mode  text
-);
-
--- Superpower log
-CREATE TABLE superpower_log (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  created_at  timestamptz DEFAULT now(),
-  power_name  text NOT NULL,
-  duration_ms integer
-);
-
--- Sessions
-CREATE TABLE gesture_sessions (
-  session_id  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  started_at  timestamptz DEFAULT now(),
-  ended_at    timestamptz,
-  total_gestures integer DEFAULT 0
-);
-
--- Leaderboard
-CREATE TABLE leaderboard (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  username         text NOT NULL,
-  total_gestures   integer DEFAULT 0,
-  favorite_gesture text,
-  superpower_score integer DEFAULT 0
-);
+```
+gestura_dashboard.py        ← Main Streamlit app (entry point)
+requirements.txt            ← Python dependencies
+.streamlit/
+  config.toml               ← Theme + server settings
+  secrets.toml              ← Local secrets (NOT committed)
+.env.example                ← Template for local .env
+.gitignore                  ← Keeps secrets out of git
+gestura_modules/            ← Pure-Python utility modules
+  __init__.py
+  analytics.py
+  export_tools.py
+  feature_engine.py
+  gesture_classifier.py
+  math_core.py
+  storage.py
+  superpower_catalog.py
+  simulator.py
+  api_server.py             ← Optional FastAPI server (not used by dashboard)
 ```
 
-## Deployment (Streamlit Community Cloud)
+---
 
-1. Push this folder to a GitHub repo
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your repo, set main file to `gestura_dashboard.py`
-4. Add `SUPABASE_URL` and `SUPABASE_KEY` in the Secrets panel
+## 🗄️ Supabase Tables (for live mode)
 
-## Module Overview
+| Table             | Key columns                                              |
+|-------------------|----------------------------------------------------------|
+| `gesture_events`  | `created_at`, `gesture_name`, `confidence`, `palm_x`, `palm_y`, `power_mode` |
+| `superpower_log`  | `created_at`, `power_name`, `duration_ms`               |
+| `gesture_sessions`| `session_id`, `started_at`, `ended_at`, `total_gestures` |
+| `leaderboard`     | `username`, `total_gestures`, `favorite_gesture`, `superpower_score` |
 
-| Module | Purpose |
-|--------|---------|
-| `math_core.py` | Vec3, distance, angle, circularity, Kalman/OneEuro filters |
-| `feature_engine.py` | Extract 20-feature FeatureVector from 21 MediaPipe landmarks |
-| `gesture_classifier.py` | Rule-based pose + motion classifier + stateful GestureClassifier |
-| `superpower_catalog.py` | 61 superpowers with triggers, effects, colors, priorities |
-| `analytics.py` | Summarize, heatmap, health score, outlier detection |
-| `storage.py` | JSONL/CSV local store + optional Supabase wrapper |
-| `export_tools.py` | Markdown reports + CSV/JSON export bundles |
-| `simulator.py` | Synthetic landmark sequences for testing |
-| `api_server.py` | Optional FastAPI server (classify, simulate, power lookup) |
+---
+
+## ✨ Features
+
+- 📊 Real-time gesture frequency, superpower usage, and timeline charts
+- 📍 Palm position heatmap
+- 🏆 Leaderboard with progress bars
+- 📋 Recent sessions table
+- 🎯 Confidence distribution histogram with threshold marker
+- 🔴 Live event feed (last 25 events, colour-coded by confidence)
+- 📦 CSV + Markdown export buttons
+- ⚡ Demo mode — zero config needed
+
+---
+
+*GESTURA ULTRA v3.0 · Iron Hand AI · Streamlit Analytics*
