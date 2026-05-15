@@ -899,7 +899,7 @@ async function startDetection() {
     minTrackingConfidence: 0.5,
   });
 
-  hands.onResults(onResults);
+  hands.onResults((results) => window.onResults(results));
 
   // Get camera stream
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -1028,11 +1028,14 @@ const CONNECTIONS = [
 
 // ─── GESTURE DETECTION ENGINE ─────────────────────────────────
 function isFingerUp(lm, tip, pip) {
-  return lm[tip].y < lm[pip].y;
+  return lm[tip].y < lm[pip].y - 0.012;
 }
 
 function isThumbUp(lm) {
-  return lm[THUMB_TIP].x < lm[THUMB_IP].x; // mirrored
+  // Thumb extended = tip is farther from index MCP than IP is (matches Python classifier logic)
+  const tipToIndex = dist2D(lm[THUMB_TIP], lm[INDEX_MCP]);
+  const ipToIndex  = dist2D(lm[THUMB_IP],  lm[INDEX_MCP]);
+  return tipToIndex > ipToIndex * 1.12;
 }
 
 function dist2D(a, b) {
@@ -1470,6 +1473,8 @@ function onResults(results) {
 
   drawTrails();
 }
+// Expose globally so gestura_powerpack.js can wrap it
+window.onResults = onResults;
 
 // ─── BUTTON CONTROLS ──────────────────────────────────────────
 document.getElementById('btn-skeleton').addEventListener('click', function() {

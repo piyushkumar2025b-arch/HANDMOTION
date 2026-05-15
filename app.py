@@ -326,7 +326,7 @@ with col_analytics:
     if "event_store" in _backend:
         try:
             store  = _backend["event_store"]
-            events = list(store.load_all()) if hasattr(store, "load_all") else []
+            events = store.read() if hasattr(store, "read") else []
         except Exception:
             pass
 
@@ -361,7 +361,14 @@ with col_analytics:
     # ── Export button ─────────────────────────────────────────────────────
     if events and "export_csv" in _backend:
         try:
-            csv_bytes = _backend["export_csv"](events).encode("utf-8")
+            import csv, io
+            output = io.StringIO()
+            rows = [dict(row) for row in events]
+            columns = sorted({key for row in rows for key in row})
+            writer = csv.DictWriter(output, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(rows)
+            csv_bytes = output.getvalue().encode("utf-8")
             st.download_button(
                 "⬇ Export Events (CSV)",
                 data=csv_bytes,
