@@ -227,7 +227,7 @@ def _build_html() -> str:
     if "to_json_ready" in _backend and "POWER_CATALOG" in _backend:
         try:
             powers_json = json.dumps(
-                _backend["to_json_ready"](_backend["POWER_CATALOG"].values()),
+                _backend["to_json_ready"](_backend["POWER_CATALOG"]),
                 ensure_ascii=False,
             )
         except Exception:
@@ -311,7 +311,7 @@ with col_catalog:
                 ),
                 "Effect":  p.effect,
             }
-            for p in list(_backend["POWER_CATALOG"].values())[:20]
+            for p in list(_backend["POWER_CATALOG"])[:20]
         ]
         st.dataframe(pd.DataFrame(catalog_rows), use_container_width=True, height=260)
     else:

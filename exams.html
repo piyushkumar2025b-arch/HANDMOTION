@@ -832,27 +832,26 @@ let camera = null;
 let mpLoaded = false;
 
 async function loadMediaPipe() {
-  return new Promise((resolve, reject) => {
-    // Dynamically load MediaPipe scripts
-    const scripts = [
-      'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js',
-    ];
-    let loaded = 0;
-    scripts.forEach(src => {
+  // Load scripts sequentially — hands.js depends on camera_utils & drawing_utils
+  const scripts = [
+    'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js',
+    'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
+    'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js',
+  ];
+  for (const src of scripts) {
+    await new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = src;
       s.crossOrigin = 'anonymous';
-      s.onload = () => { if(++loaded === scripts.length) resolve(); };
+      s.onload = resolve;
       s.onerror = () => reject(new Error('MediaPipe load failed: ' + src));
       document.head.appendChild(s);
     });
-  });
+  }
 }
 
 // ─── CAMERA START ─────────────────────────────────────────────
-document.getElementById('btn-start').addEventListener('click', async () => {
+document.getElementById('btn-start').addEventListener('click', async function handleStart() {
   const btn = document.getElementById('btn-start');
   btn.textContent = 'LOADING...';
   btn.disabled = true;
@@ -867,7 +866,12 @@ document.getElementById('btn-start').addEventListener('click', async () => {
     btn.textContent = '■ STOP';
     btn.disabled = false;
     btn.classList.add('active');
-    btn.onclick = stopDetection;
+    // Swap to stop handler
+    btn.replaceWith(btn.cloneNode(true)); // remove all listeners
+    const freshBtn = document.getElementById('btn-start');
+    freshBtn.textContent = '■ STOP';
+    freshBtn.classList.add('active');
+    freshBtn.addEventListener('click', stopDetection, {once: true});
 
     document.getElementById('btn-skeleton').disabled = false;
     document.getElementById('btn-trail').disabled = false;
@@ -891,8 +895,8 @@ async function startDetection() {
   hands.setOptions({
     maxNumHands: 2,
     modelComplexity: 1,
-    minDetectionConfidence: 0.65,
-    minTrackingConfidence: 0.55,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.5,
   });
 
   hands.onResults(onResults);
@@ -904,12 +908,22 @@ async function startDetection() {
   });
   video.srcObject = stream;
 
+  // Wait for video to be ready before feeding MediaPipe
+  await new Promise((resolve, reject) => {
+    video.onloadeddata = resolve;
+    video.onerror = reject;
+    setTimeout(resolve, 3000); // fallback timeout
+  });
+  await video.play().catch(() => {});
+
   state.running = true;
 
   // Use MediaPipe Camera utility
   camera = new window.Camera(video, {
     onFrame: async () => {
-      if(state.running) await hands.send({image: video});
+      if(state.running && video.readyState >= 2) {
+        await hands.send({image: video});
+      }
     },
     width: 1280,
     height: 720,
@@ -928,6 +942,7 @@ async function startDetection() {
 function stopDetection() {
   state.running = false;
   if(camera) { camera.stop(); camera = null; }
+  if(hands) { hands.close(); hands = null; }
   if(video.srcObject) {
     video.srcObject.getTracks().forEach(t=>t.stop());
     video.srcObject = null;
@@ -942,12 +957,44 @@ function stopDetection() {
   document.getElementById('conf-val').textContent = '--';
   document.getElementById('gesture-display').textContent = 'AWAITING...';
 
+  // Re-wire the button back to START without page reload
   const btn = document.getElementById('btn-start');
   btn.textContent = '▶ START CAMERA';
   btn.classList.remove('active');
-  btn.onclick = null;
-  btn.addEventListener('click', async () => {}, {once:true});
-  location.reload();
+  btn.disabled = false;
+  // Swap listeners cleanly
+  const freshBtn = btn.cloneNode(true);
+  btn.parentNode.replaceChild(freshBtn, btn);
+  freshBtn.addEventListener('click', async function() {
+    freshBtn.textContent = 'LOADING...';
+    freshBtn.disabled = true;
+    try {
+      if(!mpLoaded) { await loadMediaPipe(); mpLoaded = true; }
+      await startDetection();
+      freshBtn.textContent = '■ STOP';
+      freshBtn.disabled = false;
+      freshBtn.classList.add('active');
+      const next = freshBtn.cloneNode(true);
+      freshBtn.parentNode.replaceChild(next, freshBtn);
+      next.textContent = '■ STOP';
+      next.classList.add('active');
+      next.addEventListener('click', stopDetection, {once:true});
+      document.getElementById('btn-skeleton').disabled = false;
+      document.getElementById('btn-trail').disabled = false;
+      document.getElementById('btn-cursor').disabled = false;
+      document.getElementById('btn-heatmap').disabled = false;
+    } catch(e) {
+      console.error(e);
+      freshBtn.textContent = '▶ START CAMERA';
+      freshBtn.disabled = false;
+      showToast('ERROR', e.message.substring(0,30).toUpperCase(), '#ff006e');
+    }
+  }, {once:true});
+
+  document.getElementById('btn-skeleton').disabled = true;
+  document.getElementById('btn-trail').disabled = true;
+  document.getElementById('btn-cursor').disabled = true;
+  document.getElementById('btn-heatmap').disabled = true;
 }
 
 // ─── FPS COUNTER ──────────────────────────────────────────────
