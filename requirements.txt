@@ -8,5 +8,10 @@ pandas>=2.1.0
 plotly>=5.20.0
 python-dotenv>=1.0.0
 
+# ── FastAPI backend (optional — powers the /classify endpoint) ────────────────
+# FIX: these were missing; api_server.py imports them at runtime
+fastapi>=0.111.0
+uvicorn>=0.29.0
+
 # ── Supabase (optional — leave out if running demo-only) ─────────────────────
 supabase>=2.4.0

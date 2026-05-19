@@ -156,25 +156,32 @@ def classify_motion(history: Iterable[Sequence], timestamps: Iterable[float] | N
     if circularity_score(centers) > 0.62:
         signed = _signed_turn(centers)
         motions.add("circleCW" if signed > 0 else "circleCCW")
-    if max(distance(center, sum_centroid(centers)) for center in centers) < 0.035 and len(frames) >= 12:
+    # FIX: guard against empty centers before calling sum_centroid
+    if centers and max(distance(center, sum_centroid(centers)) for center in centers) < 0.035 and len(frames) >= 12:
         motions.add("hold")
     return motions
 
 
 def sum_centroid(values: Sequence[Vec3]) -> Vec3:
+    """Return the mean of a sequence of Vec3. Returns Vec3(0,0,0) for empty input."""
+    if not values:
+        return Vec3(0.0, 0.0, 0.0)
+    n = len(values)
     return Vec3(
-        sum(v.x for v in values) / len(values),
-        sum(v.y for v in values) / len(values),
-        sum(v.z for v in values) / len(values),
+        sum(v.x for v in values) / n,
+        sum(v.y for v in values) / n,
+        sum(v.z for v in values) / n,
     )
 
 
 def _signed_turn(values: Sequence[Vec3]) -> float:
+    """Return the signed accumulated cross-product turn of a path (positive = CW)."""
     center = sum_centroid(values)
     total = 0.0
     for a, b in zip(values, values[1:]):
-        va = Vec3(a.x - center.x, a.y - center.y)
-        vb = Vec3(b.x - center.x, b.y - center.y)
+        # Use only the XY plane; z=0.0 is explicit for clarity
+        va = Vec3(a.x - center.x, a.y - center.y, 0.0)
+        vb = Vec3(b.x - center.x, b.y - center.y, 0.0)
         total += va.x * vb.y - va.y * vb.x
     return total
 
@@ -213,8 +220,14 @@ class GestureClassifier:
         return FrameResult(tuple(results), frozenset(two_hand), powers)
 
     def update_mediapipe_results(self, results) -> FrameResult:
-        landmarks = getattr(results, "multiHandLandmarks", None) or results.get("multiHandLandmarks", [])
-        handed = getattr(results, "multiHandedness", None) or results.get("multiHandedness", [])
+        """Accept either a MediaPipe Results object or a plain dict."""
+        # FIX: only call .get() when results is a dict; otherwise always use getattr
+        if isinstance(results, dict):
+            landmarks = results.get("multiHandLandmarks") or []
+            handed = results.get("multiHandedness") or []
+        else:
+            landmarks = getattr(results, "multiHandLandmarks", None) or []
+            handed = getattr(results, "multiHandedness", None) or []
         labels = []
         for idx, hand in enumerate(handed):
             label = hand.get("label") if isinstance(hand, dict) else getattr(hand, "label", None)

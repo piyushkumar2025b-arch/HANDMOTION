@@ -65,6 +65,13 @@ def motion_path(motion: str, frames: int = 24, amplitude: float = 0.18) -> list[
             path.append((0.0, 0.0, -amplitude * t))
         elif motion == "hold":
             path.append((sin(t * 2 * pi) * 0.006, cos(t * 2 * pi) * 0.006, 0.0))
+        elif motion == "flick":
+            # FIX: fast diagonal snap — builds then releases to simulate a quick flick
+            ease = t * t  # accelerate
+            path.append((amplitude * 0.6 * ease, -amplitude * 0.4 * ease, 0.0))
+        elif motion == "zigzag":
+            # FIX: vertical sinusoidal path — alternating Y direction
+            path.append((amplitude * 0.3 * t, sin(t * 4 * pi) * amplitude * 0.55, 0.0))
         else:
             path.append((0.0, 0.0, 0.0))
     return path

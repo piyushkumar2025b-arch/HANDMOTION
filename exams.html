@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GESTURA — AI Hand Intelligence</title>
+<title>GESTURA — AI Hand Intelligence v3.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
@@ -549,6 +549,210 @@
     text-shadow:0 0 40px rgba(255,183,0,0.6);
   }
 
+  /* ═══════════════════════════════════════════════════
+     FACE EXPRESSION PANEL
+  ═══════════════════════════════════════════════════ */
+  #face-panel {
+    position:fixed;
+    left:20px;
+    bottom:70px;
+    width:220px;
+    z-index:100;
+  }
+  .face-expression-badge {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:4px 0;
+  }
+  .face-expr-icon {
+    font-size:22px;
+    line-height:1;
+    filter: drop-shadow(0 0 6px rgba(0,245,255,0.6));
+    transition: transform 0.2s;
+  }
+  .face-expr-icon.bounce { animation: exprBounce 0.4s ease; }
+  @keyframes exprBounce {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.35); }
+    70%  { transform: scale(0.92); }
+    100% { transform: scale(1); }
+  }
+  .face-expr-name {
+    font-family:'Orbitron', monospace;
+    font-size:11px;
+    font-weight:700;
+    color:var(--green);
+    text-shadow:var(--glow-green);
+    letter-spacing:2px;
+  }
+  .face-expr-conf {
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    color:rgba(0,245,255,0.4);
+    letter-spacing:1px;
+  }
+  .au-grid {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:4px;
+    margin-top:6px;
+  }
+  .au-row {
+    display:flex;
+    align-items:center;
+    gap:5px;
+    font-family:'Share Tech Mono', monospace;
+    font-size:8px;
+    color:rgba(0,245,255,0.5);
+  }
+  .au-bar {
+    flex:1;
+    height:3px;
+    background:rgba(0,245,255,0.1);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .au-fill {
+    height:100%;
+    background:var(--green);
+    transition:width 0.12s;
+    width:0%;
+  }
+
+  /* ═══════════════════════════════════════════════════
+     DRAW CLIPBOARD OVERLAY
+  ═══════════════════════════════════════════════════ */
+  #draw-overlay {
+    position:fixed;
+    inset:0;
+    z-index:600;
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background:rgba(2,4,8,0.88);
+    backdrop-filter:blur(4px);
+  }
+  #draw-overlay.visible { display:flex; }
+
+  #draw-header {
+    font-family:'Orbitron', sans-serif;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:5px;
+    color:var(--cyan);
+    text-shadow:var(--glow-cyan);
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  #draw-mode-badge {
+    font-size:9px;
+    letter-spacing:3px;
+    padding:3px 10px;
+    border:1px solid var(--green);
+    color:var(--green);
+    border-radius:2px;
+    background:rgba(57,255,20,0.08);
+    box-shadow: 0 0 10px rgba(57,255,20,0.3);
+  }
+
+  #draw-canvas {
+    width:min(780px, 90vw);
+    height:min(490px, 65vh);
+    background:#000;
+    border:2px solid rgba(0,245,255,0.3);
+    box-shadow:0 0 30px rgba(0,245,255,0.15), inset 0 0 60px rgba(0,0,0,0.8);
+    border-radius:4px;
+    cursor:crosshair;
+    display:block;
+    touch-action:none;
+  }
+
+  /* Toolbar below canvas */
+  #draw-toolbar {
+    margin-top:12px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .draw-color-btn {
+    width:22px; height:22px;
+    border-radius:50%;
+    border:2px solid transparent;
+    cursor:pointer;
+    transition:transform 0.15s, border-color 0.15s;
+  }
+  .draw-color-btn:hover,
+  .draw-color-btn.selected { transform:scale(1.3); border-color:#fff; }
+
+  .draw-size-btn {
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    letter-spacing:2px;
+    padding:5px 10px;
+    border:1px solid rgba(0,245,255,0.3);
+    background:rgba(0,245,255,0.05);
+    color:var(--cyan);
+    cursor:pointer;
+    border-radius:2px;
+    transition:all 0.15s;
+  }
+  .draw-size-btn:hover,
+  .draw-size-btn.selected {
+    border-color:var(--cyan);
+    background:rgba(0,245,255,0.15);
+    box-shadow:var(--glow-cyan);
+  }
+  .draw-tool-sep { width:1px; height:20px; background:rgba(0,245,255,0.2); }
+
+  #draw-hint {
+    margin-top:10px;
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    letter-spacing:3px;
+    color:rgba(0,245,255,0.35);
+    text-align:center;
+    line-height:1.7;
+  }
+  #draw-finger-cursor {
+    position:fixed;
+    width:14px; height:14px;
+    border-radius:50%;
+    background:var(--green);
+    box-shadow:0 0 10px rgba(57,255,20,0.8);
+    pointer-events:none;
+    z-index:700;
+    transform:translate(-50%,-50%);
+    display:none;
+    transition:background 0.1s;
+  }
+  #draw-finger-cursor.eraser {
+    background:transparent;
+    border:2px solid #ff4444;
+    box-shadow:0 0 10px rgba(255,68,68,0.8);
+    width:22px; height:22px;
+  }
+
+  /* DRAW MODE INDICATOR in bottom HUD */
+  #draw-mode-indicator {
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    letter-spacing:3px;
+    color:var(--green);
+    background:rgba(57,255,20,0.08);
+    border:1px solid rgba(57,255,20,0.3);
+    border-radius:2px;
+    padding:4px 10px;
+    box-shadow:0 0 10px rgba(57,255,20,0.2);
+    display:none;
+  }
+  #draw-mode-indicator.visible { display:inline-block; }
+
 </style>
 </head>
 <body>
@@ -586,7 +790,7 @@
 <div id="hud-top">
   <div>
     <div class="logo">GESTU<span>RA</span></div>
-    <div class="logo-sub">AI HAND INTELLIGENCE v2.4</div>
+    <div class="logo-sub">AI HAND + FACE INTELLIGENCE v3.0</div>
   </div>
   <div class="hud-metrics">
     <div class="metric fps">
@@ -700,6 +904,8 @@
   <button class="btn-hud" id="btn-trail" disabled>TRAILS: ON</button>
   <button class="btn-hud" id="btn-cursor" disabled>CURSOR: ON</button>
   <button class="btn-hud" id="btn-heatmap" disabled>HEATMAP: OFF</button>
+  <button class="btn-hud" id="btn-draw" disabled>✏ DRAW CANVAS</button>
+  <span id="draw-mode-indicator">✏ DRAWING</span>
 </div>
 
 <!-- GESTURE TOAST -->
@@ -715,6 +921,63 @@
 <div id="slide-overlay">
   <div class="slide-text" id="slide-text">SLIDE →</div>
 </div>
+
+<!-- FACE EXPRESSION PANEL -->
+<div id="face-panel">
+  <div class="panel-card" style="border-left-color:#ff4fd8">
+    <div class="panel-title" style="color:rgba(255,79,216,0.7)">&#9658; FACE EXPRESSION</div>
+    <div class="face-expression-badge">
+      <div class="face-expr-icon" id="face-expr-icon">😐</div>
+      <div>
+        <div class="face-expr-name" id="face-expr-name">NEUTRAL</div>
+        <div class="face-expr-conf" id="face-expr-conf">AWAITING FACE...</div>
+      </div>
+    </div>
+    <div class="au-grid">
+      <div class="au-row">SMILE<div class="au-bar"><div class="au-fill" id="au-smile"></div></div></div>
+      <div class="au-row">BROW<div class="au-bar"><div class="au-fill" id="au-brow" style="background:var(--amber)"></div></div></div>
+      <div class="au-row">EYES<div class="au-bar"><div class="au-fill" id="au-eyes" style="background:var(--cyan)"></div></div></div>
+      <div class="au-row">MOUTH<div class="au-bar"><div class="au-fill" id="au-mouth" style="background:var(--magenta)"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAW CLIPBOARD OVERLAY -->
+<div id="draw-overlay">
+  <div id="draw-header">
+    ✏ GESTURE DRAW BOARD
+    <span id="draw-mode-badge">STANDBY</span>
+  </div>
+  <canvas id="draw-canvas"></canvas>
+  <div id="draw-toolbar">
+    <!-- Colors -->
+    <button class="draw-color-btn selected" data-color="#00f5ff" style="background:#00f5ff" title="Cyan"></button>
+    <button class="draw-color-btn" data-color="#39ff14" style="background:#39ff14" title="Green"></button>
+    <button class="draw-color-btn" data-color="#ff006e" style="background:#ff006e" title="Magenta"></button>
+    <button class="draw-color-btn" data-color="#ffb700" style="background:#ffb700" title="Amber"></button>
+    <button class="draw-color-btn" data-color="#b44fff" style="background:#b44fff" title="Purple"></button>
+    <button class="draw-color-btn" data-color="#ffffff" style="background:#ffffff" title="White"></button>
+    <div class="draw-tool-sep"></div>
+    <!-- Brush sizes -->
+    <button class="draw-size-btn selected" data-size="3">XS</button>
+    <button class="draw-size-btn" data-size="6">S</button>
+    <button class="draw-size-btn" data-size="12">M</button>
+    <button class="draw-size-btn" data-size="22">L</button>
+    <div class="draw-tool-sep"></div>
+    <!-- Tools -->
+    <button class="draw-size-btn" id="draw-btn-eraser">🗑 ERASE</button>
+    <button class="draw-size-btn" id="draw-btn-clear">&#10006; CLEAR</button>
+    <button class="draw-size-btn" id="draw-btn-save">↓ SAVE</button>
+    <button class="draw-size-btn" id="draw-btn-close">&#10006; CLOSE</button>
+  </div>
+  <div id="draw-hint">
+    &#9757; POINT (1 finger) = DRAW &nbsp;&nbsp;|&nbsp;&nbsp; ✊ FIST = LIFT PEN &nbsp;&nbsp;|&nbsp;&nbsp; 🤟 PEACE = ERASE<br>
+    🖐 OPEN PALM = CLEAR &nbsp;&nbsp;|&nbsp;&nbsp; 🤚 PINCH = CHANGE COLOR &nbsp;&nbsp;|&nbsp;&nbsp; ROCK 🤘 = SAVE
+  </div>
+</div>
+
+<!-- FINGER CURSOR for draw mode -->
+<div id="draw-finger-cursor"></div>
 
 <!-- MEDIAPIPE + SCRIPTS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
@@ -1355,114 +1618,9 @@ function onResults(results) {
   const multiHandLandmarks = results.multiHandLandmarks || [];
   const multiHandedness = results.multiHandedness || [];
 
-  state.handsDetected = multiHandLandmarks.length;
-  document.getElementById('hands-val').textContent = state.handsDetected;
-  document.getElementById('no-hand-msg').style.opacity = state.handsDetected > 0 ? '0' : '1';
-
-  if(state.handsDetected === 0) {
-    document.getElementById('gesture-display').textContent = 'NO HAND';
-    document.getElementById('conf-left').style.width = '0%';
-    document.getElementById('conf-right').style.width = '0%';
-    document.getElementById('conf-val').textContent = '--';
-    cursor.style.opacity = '0';
-    return;
-  }
-
-  cursor.style.opacity = '1';
-
-  multiHandLandmarks.forEach((lm, idx) => {
-    const handedness = multiHandedness[idx]?.label || 'Unknown';
-    const confidence = multiHandedness[idx]?.score || 0;
-    const hand = handedness === 'Left' ? 'left' : 'right';
-
-    // Update confidence bars
-    const bar = hand === 'left' ? 'conf-left' : 'conf-right';
-    document.getElementById(bar).style.width = (confidence*100).toFixed(0) + '%';
-
-    // Track velocity
-    const wristPos = { x: lm[WRIST].x, y: lm[WRIST].y };
-    if(state.prevPalmPos) {
-      state.velocity.x = (wristPos.x - state.prevPalmPos.x) * 60;
-      state.velocity.y = (wristPos.y - state.prevPalmPos.y) * 60;
-      document.getElementById('velocity-val').textContent =
-        `X: ${state.velocity.x.toFixed(2)} | Y: ${state.velocity.y.toFixed(2)}`;
-    }
-    state.prevPalmPos = wristPos;
-
-    // Draw skeleton
-    drawHand(lm, handedness, confidence);
-
-    // Trail from index tip
-    addTrail(lm[INDEX_TIP].x, lm[INDEX_TIP].y);
-
-    // Update heatmap
-    updateHeatmap(lm);
-
-    // Virtual cursor (index tip)
-    const ix = lm[INDEX_TIP].x;
-    const iy = lm[INDEX_TIP].y;
-    // Mirror for display (CSS mirrored canvas)
-    cursor.style.left = ((1-ix)*window.innerWidth) + 'px';
-    cursor.style.top = (iy * window.innerHeight) + 'px';
-
-    // Gesture detection (first hand only for primary)
-    if(idx === 0) {
-      const gesture = detectGesture(lm);
-
-      // Update finger indicators
-      document.getElementById('fp-thumb').classList.toggle('active', gesture.fingers.thumb);
-      document.getElementById('fp-index').classList.toggle('active', gesture.fingers.index);
-      document.getElementById('fp-middle').classList.toggle('active', gesture.fingers.middle);
-      document.getElementById('fp-ring').classList.toggle('active', gesture.fingers.ring);
-      document.getElementById('fp-pinky').classList.toggle('active', gesture.fingers.pinky);
-
-      // Update confidence val
-      document.getElementById('conf-val').textContent = (confidence*100).toFixed(0);
-
-      // Swipe detection
-      const swipe = detectSwipe(lm);
-      // Wave detection
-      const wave = detectWave(lm);
-
       let finalGesture = gesture.name;
       if(swipe) finalGesture = swipe;
       if(wave) finalGesture = 'WAVE';
-
-      // Finger count shortcuts
-      const count = gesture.count;
-      const fingerGestureMap = {
-        1: 'POINTING ☝',
-        2: 'PEACE ✌',
-        3: 'THREE',
-        4: 'FOUR',
-        5: 'OPEN PALM',
-      };
-
-      // Update gesture display
-      document.getElementById('gesture-display').textContent = finalGesture;
-
-      // Dispatch gesture action (with debounce)
-      if(finalGesture !== state.lastGesture || Date.now()-state.lastGestureTime > 1200) {
-        if(finalGesture !== 'GESTURE' && finalGesture !== 'NO HAND') {
-          dispatchGesture(finalGesture);
-          state.lastGesture = finalGesture;
-          state.lastGestureTime = Date.now();
-        }
-      }
-
-      // Hand position panel
-      const palmX = ((lm[INDEX_MCP].x + lm[PINKY_MCP].x)/2).toFixed(2);
-      const palmY = ((lm[INDEX_MCP].y + lm[PINKY_MCP].y)/2).toFixed(2);
-      document.getElementById('hand-pos').innerHTML =
-        `PALM X: ${palmX}<br>PALM Y: ${palmY}<br>WRIST: ${lm[WRIST].x.toFixed(2)},${lm[WRIST].y.toFixed(2)}`;
-
-      // Pinch ripple effect
-      const pinchDist = Math.sqrt(
-        (lm[INDEX_TIP].x-lm[THUMB_TIP].x)**2 + (lm[INDEX_TIP].y-lm[THUMB_TIP].y)**2
-      );
-      if(pinchDist < 0.05) {
-        const sx = (1 - lm[INDEX_TIP].x) * window.innerWidth;
-        const sy = lm[INDEX_TIP].y * window.innerHeight;
         if(!state._lastRipple || Date.now()-state._lastRipple > 500) {
           spawnRipple(sx, sy);
           state._lastRipple = Date.now();

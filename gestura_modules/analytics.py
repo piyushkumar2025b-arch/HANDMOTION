@@ -108,6 +108,9 @@ def session_health(gesture_events: Iterable[Mapping], superpower_events: Iterabl
 
 def detect_motion_outliers(events: Iterable[Mapping], z_threshold: float = 2.5) -> list[dict]:
     events = list(events)
+    # FIX: guard against empty events before computing statistics
+    if not events:
+        return []
     speeds = []
     previous = None
     for row in events:

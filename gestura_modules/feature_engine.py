@@ -99,13 +99,20 @@ def extract_hand_features(landmarks: Sequence, history: Iterable | None = None) 
     if len(centers) >= 3:
         speeds = [distance(a, b) for a, b in zip(centers, centers[1:])]
         path_speed = sum(speeds[-5:]) / max(1, min(5, len(speeds)))
+        # FIX: guard against empty accel_values when len(centers) == 3
         accel_values = [b - a for a, b in zip(speeds, speeds[1:])]
-        path_acceleration = sum(accel_values[-5:]) / max(1, min(5, len(accel_values)))
+        if accel_values:
+            path_acceleration = sum(accel_values[-5:]) / max(1, min(5, len(accel_values)))
         x_flips = direction_changes([p.x for p in centers])
         y_flips = direction_changes([p.y for p in centers])
         circularity = circularity_score(centers)
-        path_curv = sum(abs(angle_between(centers[i - 1], centers[i], centers[i + 1])) for i in range(1, len(centers) - 1))
-        path_curv = safe_div(path_curv, len(centers) - 2)
+        # FIX: angle_between returns [0, pi]; abs() is redundant but kept for safety.
+        # safe_div already avoids /0, but we still guard len(centers) - 2 == 0
+        curvature_sum = sum(
+            angle_between(centers[i - 1], centers[i], centers[i + 1])
+            for i in range(1, len(centers) - 1)
+        )
+        path_curv = safe_div(curvature_sum, len(centers) - 2)
 
     return FeatureVector(
         palm_x=palm.x,

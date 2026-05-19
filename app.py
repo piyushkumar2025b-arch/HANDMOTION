@@ -203,7 +203,13 @@ if "api_thread_started" not in st.session_state:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @st.cache_data(show_spinner=False)
-def _build_html() -> str:
+def _build_html(powers_json: str = "[]") -> str:
+    """Build and return the full self-contained HTML string.
+
+    FIX: powers_json is now a parameter so st.cache_data uses it as a cache key.
+    Previously _backend was captured from module scope, which could yield stale
+    cached HTML if the catalog changed between restarts.
+    """
     html_path = ROOT / "exams.html"
     js_path   = ROOT / "gestura_powerpack.js"
 
@@ -221,17 +227,6 @@ def _build_html() -> str:
             '<script src="gestura_powerpack.js"></script>',
             f"<script>\n/* gestura_powerpack.js — inlined by app.py */\n{js_code}\n</script>",
         )
-
-    # ── Build JSON of live Python power catalog ───────────────────────────
-    powers_json = "[]"
-    if "to_json_ready" in _backend and "POWER_CATALOG" in _backend:
-        try:
-            powers_json = json.dumps(
-                _backend["to_json_ready"](_backend["POWER_CATALOG"]),
-                ensure_ascii=False,
-            )
-        except Exception:
-            pass
 
     # ── Bootstrap script — injected before </head> ────────────────────────
     # These globals are available to all JS in exams.html the moment it loads.
@@ -255,8 +250,19 @@ console.log('[GESTURA] Python backend powers loaded:', window.PYTHON_POWERS.leng
 # Everything below this call is a supporting control panel.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── Build the powers_json string once (outside cached fn) so the cache key is correct
+_powers_json = "[]"
+if "to_json_ready" in _backend and "POWER_CATALOG" in _backend:
+    try:
+        _powers_json = json.dumps(
+            _backend["to_json_ready"](_backend["POWER_CATALOG"]),
+            ensure_ascii=False,
+        )
+    except Exception:
+        pass
+
 st.components.v1.html(
-    _build_html(),
+    _build_html(_powers_json),
     height=820,      # Adjust if your display is taller or shorter
     scrolling=False,
 )
@@ -300,19 +306,24 @@ with col_catalog:
     st.markdown("#### ⚡ Power Catalog (Python backend)")
     if "POWER_CATALOG" in _backend:
         import pandas as pd
-        catalog_rows = [
-            {
+        catalog_rows = []
+        for p in list(_backend["POWER_CATALOG"])[:20]:
+            t = p.trigger
+            # FIX: build a human-readable trigger label
+            if t.two_hand:
+                trigger_label = f"🤲 {t.two_hand}"
+            elif t.pose and t.motion:
+                trigger_label = f"{t.pose} + {t.motion}"
+            elif t.pose:
+                trigger_label = t.pose
+            else:
+                trigger_label = t.motion or "—"
+            catalog_rows.append({
                 "Power":   p.name,
-                "Trigger": (
-                    p.trigger.pose
-                    or p.trigger.two_hand
-                    or p.trigger.motion
-                    or "—"
-                ),
+                "Trigger": trigger_label,
                 "Effect":  p.effect,
-            }
-            for p in list(_backend["POWER_CATALOG"])[:20]
-        ]
+                "Priority": p.priority,
+            })
         st.dataframe(pd.DataFrame(catalog_rows), use_container_width=True, height=260)
     else:
         st.warning("Power catalog not loaded — check worker status.")

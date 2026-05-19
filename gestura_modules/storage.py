@@ -46,8 +46,12 @@ def export_csv(rows: Iterable[Mapping], path: str | os.PathLike) -> Path:
     rows = [dict(row) for row in rows]
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
+    # FIX: guard against empty rows to avoid writing a blank-header CSV
     columns = sorted({key for row in rows for key in row})
     with output.open("w", newline="", encoding="utf-8") as handle:
+        if not columns:
+            handle.write("# no data\n")
+            return output
         writer = csv.DictWriter(handle, fieldnames=columns)
         writer.writeheader()
         writer.writerows(rows)

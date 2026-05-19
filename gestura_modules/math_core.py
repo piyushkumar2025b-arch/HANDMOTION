@@ -28,8 +28,20 @@ class Vec3:
     def __mul__(self, scalar: float) -> "Vec3":
         return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
 
+    def __rmul__(self, scalar: float) -> "Vec3":
+        """Support scalar * Vec3 in addition to Vec3 * scalar."""
+        return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
+
     def __truediv__(self, scalar: float) -> "Vec3":
         return Vec3(self.x / scalar, self.y / scalar, self.z / scalar)
+
+    def __neg__(self) -> "Vec3":
+        """Unary negation: -vec."""
+        return Vec3(-self.x, -self.y, -self.z)
+
+    def __abs__(self) -> float:
+        """abs(vec) returns the magnitude."""
+        return self.mag()
 
     def dot(self, other: "Vec3") -> float:
         return self.x * other.x + self.y * other.y + self.z * other.z
